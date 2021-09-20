@@ -1,0 +1,184 @@
+---
+title: "World Happiness Report 2021"
+author: "Ziqing Yan(s3749857)"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(ggplot2)
+library(dplyr)
+library(rgeos)
+library(maptools)
+library(ggmap)
+library(broom)
+library(mapproj)
+library(leaflet)
+library(htmltools)
+library(plotly)
+```
+
+Data visualization
+=======================================================================
+
+Column {data-width=550}
+-----------------------------------------------------------------------
+
+### Happiness Map 2021
+
+```{r}
+# Load .shp file and data
+country.shp <- readShapeSpatial("D:/StudyFolder/DataVisualization/Module 7/99bfd9e7-bb42-4728-87b5-07f8c8ac631c2020328-1-1vef4ev.lu5nk.shp",
+                                delete_null_obj = TRUE)
+
+happiness <- read.csv("D:/StudyFolder/DataVisualization/Assignment3/world-happiness-report-2021.csv",
+                      stringsAsFactors = FALSE,encoding = "UTF-8")
+
+# Data preprocessing
+happiness <- happiness %>% rename(CNTRY_NAME = X.U.FEFF.Country.name)
+filter <- anti_join(happiness, country.shp@data, by = "CNTRY_NAME")
+
+country.shp@data$CNTRY_NAME <- as.character(country.shp@data$CNTRY_NAME)
+
+country.shp@data[country.shp@data$CNTRY_NAME == "Byelarus",2] <- "Belarus"
+country.shp@data[country.shp@data$CNTRY_NAME == "Myanmar (Burma)",2] <- "Myanmar"
+country.shp@data[country.shp@data$CNTRY_NAME == "Taiwan",2] <- "Taiwan Province of China"
+country.shp@data[country.shp@data$CNTRY_NAME == "Gambia, The",2] <- "Gambia"
+country.shp@data[country.shp@data$CNTRY_NAME == "Tanzania, United Republic of",2] <- "Tanzania"
+happiness[happiness$CNTRY_NAME == "Congo (Brazzaville)",1] <- "Congo"
+happiness[happiness$CNTRY_NAME == "North Macedonia",1] <- "Macedonia"
+
+# Spatial data visualization
+country_happiness <- sp::merge(country.shp, happiness, by = "CNTRY_NAME")
+p1 <- leaflet(country.shp) %>% setView(lng = 26.3, lat = 17.2, zoom = 1)
+
+pal1 <- colorNumeric(
+  "YlOrRd",
+  domain = country_happiness$Ladder.score
+)
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>Happiness index: %g",
+  country_happiness$CNTRY_NAME,
+  country_happiness$Ladder.score
+) %>% lapply(htmltools::HTML)
+
+
+background <- tags$style(
+  HTML(".leaflet-container {background: #ffffff;}"))
+
+source_style <- tags$style(
+  HTML(".leaflet-control.map-source {
+       text-align: center;
+       background: #ffffff;
+       font-weight: bold;
+       font-size: 13px;
+  }")
+)
+
+source <- tags$div(
+  source_style, HTML("Source: World Happiness Report 2021 - https://worldhappiness.report/ed/2021/")
+)
+
+p1 <- p1 %>% addPolygons(
+  fillColor = ~pal1(country_happiness$Ladder.score),
+  weight = 2,
+  opacity = 1,
+  color = "white",
+  dashArray = "3",
+  fillOpacity = 0.7,
+  highlight = highlightOptions(
+    weight = 5,
+    color = "#666",
+    dashArray = "",
+    fillOpacity = 0.7,
+    bringToFront = TRUE),
+  label = labels,
+  labelOptions = labelOptions(
+    style = list("font-weight" = "normal", padding = "3px 8px"),
+    textsize = "16px",
+    direction = "auto")) %>%
+  addLegend(
+    pal = pal1,
+    values = ~country_happiness$Ladder.score,
+    opacity = 0.7,
+    title = "Happiness Index",
+    position = "bottomright") %>%
+  addControl(background) %>%
+  addControl(source, position = "bottomleft", className = "map-source")
+
+p1
+```
+
+
+
+Column {data-width=450}
+-----------------------------------------------------------------------
+
+### Average Happiness Index in Different Regions
+
+```{r}
+# Data preprocessing
+happiness_region <- happiness %>% group_by(Regional.indicator) %>% summarise(mean_happinessPoint = mean(Ladder.score, na.rm = TRUE))
+happiness_region$Regional.indicator <- happiness_region$Regional.indicator %>% 
+  factor(levels = happiness_region$Regional.indicator[order(-happiness_region$mean_happinessPoint)])
+
+# Visualization with bar chart
+p2 <- ggplot(happiness_region, aes(x = Regional.indicator, y = mean_happinessPoint))
+p2 <- p2 + geom_bar(stat = "identity", fill = "dodgerblue3") + 
+  coord_cartesian(ylim = c(0,8)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1, size = 10),
+        panel.background = element_blank(),
+        panel.grid = element_blank()) +
+  labs(x = "Region",
+       y = "Average Happiness Index") +
+  geom_text(aes(label = round(mean_happinessPoint, 2)), vjust = -0.5, size = 4)
+
+p2
+
+```
+
+### Top 5 Happiest and Unhappiest Countries
+
+```{r}
+# Data preprocessing
+order_happiness <- happiness %>% arrange(desc(Ladder.score))
+top_happiness <- order_happiness[1:5,]
+top_happiness <- bind_rows(top_happiness, tail(order_happiness, n = 5))
+
+top_happiness <- top_happiness %>% rename(Country = CNTRY_NAME)
+top_happiness <- top_happiness %>% rename(Happiness.Index = Ladder.score)
+top_happiness$Country <- top_happiness$Country %>% factor(levels = top_happiness$Country[order(top_happiness$Happiness.Index)])
+
+
+
+top_happiness$Region <- top_happiness$Regional.indicator
+top_happiness$Region <- top_happiness$Region %>% factor(levels = c("Western Europe","Sub-Saharan Africa","South Asia"))
+
+
+# Visualization with bar chart
+color <- c("#009473","#DD4124","#6950a1")
+p3 <- ggplot(top_happiness, aes(x = Country, y = Happiness.Index, fill = Region))
+p3 <- p3 + geom_bar(stat = "identity") +
+  scale_fill_manual(values = color) +
+  coord_flip() +
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        legend.position = "none") +
+  labs(x = "Country", y = "Happiness Index")
+
+gg1 <- ggplotly(p3)
+gg1
+
+```
+
+Data Reference
+=======================================================================
+
+World Happiness Report. (2021). *World Happiness Report 2021*. Retrieved June 6, 2021, https://worldhappiness.report/ed/2021/.
+
+
