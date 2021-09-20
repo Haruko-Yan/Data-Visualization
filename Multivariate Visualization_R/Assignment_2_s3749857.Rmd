@@ -1,0 +1,143 @@
+---
+title: "Assignment 2"
+author: "Ziqing Yan(s3749857)"
+subtitle: Deconstruct, Reconstruct Web Report
+output:
+  html_document: default
+  pdf_document: default
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+# Do not change these settings!
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+### {.tabset} 
+
+Click the **Original**, **Code** and **Reconstruction** tabs to read about the issues and how they were fixed. 
+
+#### Original
+
+<br>
+<center>
+<img src="HomePrice_and_Affordability.jpg" width="80%">
+</center>
+<center>*Source: Median U.S. Home Prices and Housing Affordability by State (2021)* by Irena - https://howmuch.net/articles/home-affordability-in-the-US </center>
+<br>
+
+**Objective**
+
+The objective of the original data visualisation is to show median house price and affordability by different states in the US. The target audience is the people who want to buy or sell a house.
+
+The visualisation chosen had the following three main issues:
+
+* This visualisation focuses on median house price and affordability, so the big pie charts which refer to the total number of households may attract the audience's attention and mislead them.
+* The pie chart, the place names and prices on the right of the visualisation shows in a dense way, which may make it difficult for the audience to distinguish which pie chart corresponds to which place name and price.
+* The size of the pie chart cannot show the exact total number of households.
+
+**Reference**
+
+* Irena. (2021). *Median U.S. Home Prices and Housing Affordability by State*. Retrieved April 30, 2021, from Understanding Money website: https://howmuch.net/articles/home-affordability-in-the-US
+
+#### Code
+
+The following code was used to fix the issues identified in the original. 
+
+```{r}
+library(ggplot2)
+library(readxl)
+library(tidyr)
+
+# Read data
+p1 <- read_excel("D:/StudyFolder/DataVisualization/Assignment2/HomePriceAndAffordability.xlsx")
+
+# Change the unit
+p1$Price <- round(p1$Price / 1000)
+p1$All <- round(p1$All / 1000000, digits = 1)
+p1$Percentage <- round(p1$Percentage * 100)
+
+# Create a function for distinguishing which price level the observation belongs to
+price_level <- function(x){
+  vec <- c()
+  for(var in x){
+    if(var >= 600)
+      vec <- append(vec, "$600K and More")
+    else if(var >= 500 & var<=599)
+      vec <- append(vec, "$500K - $599K")
+    else if(var >= 400 & var<=499)
+      vec <- append(vec, "$400K - $499K")
+    else if(var >= 300 & var<=399)
+      vec <- append(vec, "$300K - $399K")
+    else if(var >= 200 & var<=299)
+      vec <- append(vec, "$200K - $299K")
+    else
+      vec <- append(vec, "Less than $200K")
+  }
+  return(vec)
+}
+
+
+# Add a new variable for storing price levels and transfer it to the factor type
+
+p1$Price_level <- price_level(p1$Price)
+p1$Price_level <- factor(p1$Price_level, 
+                         levels = c("$600K and More","$500K - $599K","$400K - $499K","$300K - $399K","$200K - $299K","Less than $200K"), ordered = TRUE)
+
+# Transfer wide format to long format
+
+p1 <- gather(p1, key = "Variable", value = "Value", Price:Percentage)
+
+# Change the type of Variable to factor and assign new labels to them
+
+p1$Variable <- factor(p1$Variable, 
+                      levels = c("Price", "All", "Percentage"),
+                      labels = c("Median New Home Price($)", "Total Number of Households(million)", "Percentage of households who can afford(%)"))
+
+# Create a basic multivariate bar chart
+
+plt <- ggplot(data = p1, aes(x = State, y = Value, fill = Price_level)) +
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  facet_grid(.~Variable, scales = "free") +
+  geom_text(aes(label = Value), hjust = 0, family = "Roboto")
+
+# Add title and caption
+
+plt <- plt + 
+  labs(title = "Median U.S. Home Prices and Housing Affordability by State",
+       caption = "Source: NAHB Priced-Out Estimates for 2021 (2021) -
+       https://www.nahb.org/-/media/NAHB/news-and-economics/docs/housing-economics-plus/special-studies/2021/special-study-nahb-priced-out-estimates-for-2021-february-2021.pdf?_ga=2.137281264.1550207758.1615477129-1559745574.1615477129")
+
+# Colors for different price levels which are same as colors in the original visualisation
+
+price_col <- c("#580308","#8B0703","#B81118","#EE1C25","#F7796D","#FCD3D1")
+
+# Make font and color appropriate
+
+plt <- plt +
+  scale_fill_manual(values = price_col, name = "Median New Home Price 2021") +
+  theme(text = element_text(family = "Roboto", size = 15),
+        title = element_text(face = "bold", size = 18),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+```
+
+**Data Reference**
+
+* N Zhao. (2021). *NAHB Priced-Out Estimates for 2021*. Retrieved April 30, 2021, https://www.nahb.org/-/media/NAHB/news-and-economics/docs/housing-economics-plus/special-studies/2021/special-study-nahb-priced-out-estimates-for-2021-february-2021.pdf?_ga=2.137281264.1550207758.1615477129-1559745574.1615477129.
+
+#### Reconstruction
+
+The following plot fixes the main issues in the original.
+
+```{r fig.align="center", echo = FALSE}
+
+```
+<br>
+<center>
+<img src="final picture.PNG" width="100%">
+</center>
+<br>
